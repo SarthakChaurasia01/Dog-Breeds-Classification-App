@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dog Breed Classifier</title>
+</head>
+<body>
+  <h1>Upload a Dog Image</h1>
+  <input type="file" id="fileInput">
+  <button onclick="upload()">Predict</button>
+  <p id="result"></p>
+
+  <script>
+    function upload() {
+      const fileInput = document.getElementById("fileInput");
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      fetch("/predict", {
+        method: "POST",
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("result").innerText = 
+          `Prediction: ${data.class} (${data.confidence}%)`;
+      })
+      .catch(err => {
+        console.error("Error:", err);
+      });
+    }
+  </script>
+</body>
+</html>
