@@ -1,45 +1,46 @@
-import streamlit as st
+from flask import Flask, render_template, request, jsonify
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+import json
+import os
 
-# Define your class names (trimmed version here for brevity)
-dog_breeds = [
-    "Chihuahua", "Japanese Spaniel", "Maltese Dog", "Pekinese", "Shih-Tzu",
-    "Blenheim Spaniel", "Papillon", "Toy Terrier", "Rhodesian Ridgeback", "Afghan Hound",
-    "Basset", "Beagle", "Bloodhound", "Bluetick", "Black-and-Tan Coonhound",
-    "Walker Hound", "English Foxhound", "Redbone", "Borzoi", "Irish Wolfhound",
-    # Add remaining breeds...
-]
+app = Flask(__name__)
 
 # Load model
-@st.cache_resource
-def load_model():
-    model = tf.keras.models.load_model("model_2.h5")
-    return model
+model = tf.keras.models.load_model("model_2.h5")
 
-model = load_model()
+# Load class labels
+with open("labels.json", "r") as f:
+    class_names = json.load(f)
 
-st.title("🐶 Dog Breed Classification")
-st.write("Upload an image of a dog and the model will try to predict its breed.")
+def preprocess_image(img):
+    img = img.resize((224, 224))  # or model input shape
+    img = np.array(img) / 255.0
+    img = np.expand_dims(img, axis=0)
+    return img
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+@app.route('/')
+def index():
+    return render_template("index.html")
 
-if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption='Uploaded Image', use_column_width=True)
+@app.route('/predict', methods=['POST'])
+def predict():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'})
 
-    # Preprocess image
-    img_size = (160, 160)  # Your model's input size
-    image = image.resize(img_size)
-    img_array = tf.keras.preprocessing.image.img_to_array(image)
-    img_array = tf.keras.applications.efficientnet.preprocess_input(img_array)
-    img_array = tf.expand_dims(img_array, 0)
+    file = request.files['file']
+    img = Image.open(file.stream).convert("RGB")
+    img = preprocess_image(img)
 
-    # Prediction
-    predictions = model.predict(img_array)
-    predicted_index = np.argmax(predictions[0])
-    confidence = np.max(predictions[0])
+    prediction = model.predict(img)
+    predicted_class = class_names[np.argmax(prediction[0])]
+    confidence = float(np.max(prediction[0]))
 
-    st.markdown(f"### 🐕 Predicted Breed: **{dog_breeds[predicted_index]}**")
-    st.markdown(f"### 🔍 Confidence: `{confidence:.2%}`")
+    return jsonify({
+        'class': predicted_class,
+        'confidence': round(confidence * 100, 2)
+    })
+
+if __name__ == "__main__":
+    app.run(debug=True)
